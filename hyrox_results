@@ -1,0 +1,25 @@
+let
+    Source = Csv.Document(File.Contents("C:\Users\kiersty.rose\OneDrive - Wiltshire Council\Documents\Apprenticeship\5. Professional Practice\Hyrox\HyroxResults.csv"),[Delimiter=",", Columns=34, Encoding=65001, QuoteStyle=QuoteStyle.None]),
+    #"Promoted Headers" = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"event_id", type text}, {"event_name", type text}, {"gender", type text}, {"nationality", type text}, {"age_group", type text}, {"division", type text}, {"total_time", type duration}, {"work_time", type duration}, {"roxzone_time", type duration}, {"run_time", type duration}, {"run_1", type duration}, {"work_1", type duration}, {"roxzone_1", type duration}, {"run_2", type duration}, {"work_2", type duration}, {"roxzone_2", type duration}, {"run_3", type duration}, {"work_3", type duration}, {"roxzone_3", type duration}, {"run_4", type duration}, {"work_4", type duration}, {"roxzone_4", type duration}, {"run_5", type duration}, {"work_5", type duration}, {"roxzone_5", type duration}, {"run_6", type duration}, {"work_6", type duration}, {"roxzone_6", type duration}, {"run_7", type duration}, {"work_7", type duration}, {"roxzone_7", type duration}, {"run_8", type duration}, {"work_8", type duration}, {"roxzone_8", type duration}}),
+    #"Filtered Rows" = Table.SelectRows(#"Changed Type", each ([gender] = "male") and ([division] = "elite" or [division] = "pro") and [work_8] <> #time(0, 0, 0) and [work_8] <> #duration(0, 0, 0, 0)),
+    #"Sorted Rows" = Table.Sort(#"Filtered Rows",{{"total_time", Order.Ascending}}),
+    #"Removed Columns" = Table.RemoveColumns(#"Sorted Rows",{"roxzone_8","roxzone_time", "roxzone_1", "roxzone_2", "roxzone_3", "roxzone_4", "roxzone_5", "roxzone_6", "roxzone_7","event_id", "event_name", "gender", "nationality", "age_group", "division","work_time","run_time"}),
+    #"Added Index" = Table.AddIndexColumn(#"Removed Columns", "Index", 1, 1, Int64.Type),
+    #"Reordered Columns" = Table.ReorderColumns(#"Added Index",{"Index", "total_time", "run_1", "work_1", "run_2", "work_2", "run_3", "work_3", "run_4", "work_4", "run_5", "work_5", "run_6", "work_6", "run_7", "work_7", "run_8", "work_8"}),
+    #"Unpivoted Columns1" = Table.UnpivotOtherColumns(#"Reordered Columns", {"Index", "total_time"}, "Attribute", "Value"),
+    #"Renamed Columns" = Table.RenameColumns(#"Unpivoted Columns1",{{"Attribute", "Station"}}),
+    #"Added Custom" = Table.AddColumn(#"Renamed Columns", "%TimeSpent", each [Value]/[total_time]),
+    #"Changed Type1" = Table.TransformColumnTypes(#"Added Custom",{{"%TimeSpent", Percentage.Type}}),
+    #"Removed Columns1" = Table.RemoveColumns(#"Changed Type1",{ "Value"}),
+    #"Merged Queries" = Table.NestedJoin(#"Removed Columns1", {"Station"}, StDev, {"Station"}, "StDev", JoinKind.LeftOuter),
+    #"Expanded StDev" = Table.ExpandTableColumn(#"Merged Queries", "StDev", {"Avg", "lower2stdev", "lower1.645stdev", "upper1.645stdev"}, {"StDev.Avg", "StDev.lower2stdev", "StDev.lower1.645stdev", "StDev.upper1.645stdev"}),
+    #"Renamed Columns1" = Table.RenameColumns(#"Expanded StDev",{{"StDev.Avg", "Avg"}}),
+    #"Added Custom1" = Table.AddColumn(#"Renamed Columns1", "Exceptional2stdev", each if [StDev.lower2stdev] = null then null 
+else if [#"%TimeSpent"] < [StDev.lower2stdev] then 1 else 0),
+    #"Added Custom2" = Table.AddColumn(#"Added Custom1", "Exceptional1.65stdev", each if [StDev.lower1.645stdev] = null then null else if [#"%TimeSpent"] < [StDev.lower1.645stdev] then 1 else 0),
+    #"Changed Type2" = Table.TransformColumnTypes(#"Added Custom2",{{"Exceptional1.65stdev", Int64.Type}, {"Exceptional2stdev", Int64.Type}}),
+    #"Added Custom3" = Table.AddColumn(#"Changed Type2", "Sub1hr", each if [total_time] < #duration(0,1,0,0) then 1 else 0),
+    #"Removed Columns2" = Table.RemoveColumns(#"Added Custom3",{"total_time"})
+in
+    #"Removed Columns2"
