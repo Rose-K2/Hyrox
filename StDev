@@ -1,0 +1,22 @@
+let
+    Source = Csv.Document(File.Contents("C:\Users\kiersty.rose\OneDrive - Wiltshire Council\Documents\Apprenticeship\5. Professional Practice\Hyrox\HyroxResults.csv"),[Delimiter=",", Columns=34, Encoding=65001, QuoteStyle=QuoteStyle.None]),
+    #"Promoted Headers" = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"event_id", type text}, {"event_name", type text}, {"gender", type text}, {"nationality", type text}, {"age_group", type text}, {"division", type text}, {"total_time", type duration}, {"work_time", type duration}, {"roxzone_time", type duration}, {"run_time", type duration}, {"run_1", type duration}, {"work_1", type duration}, {"roxzone_1", type duration}, {"run_2", type duration}, {"work_2", type duration}, {"roxzone_2", type duration}, {"run_3", type duration}, {"work_3", type duration}, {"roxzone_3", type duration}, {"run_4", type duration}, {"work_4", type duration}, {"roxzone_4", type duration}, {"run_5", type duration}, {"work_5", type duration}, {"roxzone_5", type duration}, {"run_6", type duration}, {"work_6", type duration}, {"roxzone_6", type duration}, {"run_7", type duration}, {"work_7", type duration}, {"roxzone_7", type duration}, {"run_8", type duration}, {"work_8", type duration}, {"roxzone_8", type duration}}),
+    #"Filtered Rows" = Table.SelectRows(#"Changed Type", each ([gender] = "male") and ([division] = "elite" or [division] = "pro") and [work_8] <> #time(0, 0, 0) and [work_8] <> #duration(0, 0, 0, 0)),
+    #"Sorted Rows" = Table.Sort(#"Filtered Rows",{{"total_time", Order.Ascending}}),
+    #"Removed Columns" = Table.RemoveColumns(#"Sorted Rows",{"roxzone_8","roxzone_time", "roxzone_1", "roxzone_2", "roxzone_3", "roxzone_4", "roxzone_5", "roxzone_6", "roxzone_7","event_id", "event_name", "gender", "nationality", "age_group", "division","work_time","run_time"}),
+    #"Added Index" = Table.AddIndexColumn(#"Removed Columns", "Index", 1, 1, Int64.Type),
+    #"Reordered Columns" = Table.ReorderColumns(#"Added Index",{"Index", "total_time", "run_1", "work_1", "run_2", "work_2", "run_3", "work_3", "run_4", "work_4", "run_5", "work_5", "run_6", "work_6", "run_7", "work_7", "run_8", "work_8"}),
+    #"Unpivoted Columns1" = Table.UnpivotOtherColumns(#"Reordered Columns", {"Index", "total_time"}, "Attribute", "Value"),
+    #"Renamed Columns" = Table.RenameColumns(#"Unpivoted Columns1",{{"Attribute", "Station"}}),
+    #"Added Custom" = Table.AddColumn(#"Renamed Columns", "%TimeSpent", each [Value]/[total_time]),
+    #"Changed Type1" = Table.TransformColumnTypes(#"Added Custom",{{"%TimeSpent", Percentage.Type}}),
+    #"Removed Columns1" = Table.RemoveColumns(#"Changed Type1",{"total_time", "Value", "Index"}),
+    #"Grouped Rows1" = Table.Group(#"Removed Columns1", {"Station"}, {{"Avg", each List.Average([#"%TimeSpent"]), type nullable number},{"Stdev", each List.StandardDeviation([#"%TimeSpent"]), type nullable number}}),
+    #"Added Custom2" = Table.AddColumn(#"Grouped Rows1", "upper2stdev", each [Avg]+(2*[Stdev]), type number),
+    Custom1 = Table.AddColumn(#"Added Custom2", "lower2stdev", each [Avg]-(2*[Stdev]), type number),
+    Custom4 = Table.AddColumn(Custom1, "lower1.645stdev", each [Avg]-(1.645*[Stdev]), type number),
+    Custom2 = Table.AddColumn(Custom4, "upper1.645stdev", each [Avg]+(1.645*[Stdev]), type number),
+    #"Changed Type2" = Table.TransformColumnTypes(Custom2,{{"lower1.645stdev", Percentage.Type}, {"lower2stdev", Percentage.Type}, {"upper2stdev", Percentage.Type}, {"Stdev", Percentage.Type}, {"Avg", Percentage.Type}, {"upper1.645stdev", Percentage.Type}})
+in
+    #"Changed Type2"
